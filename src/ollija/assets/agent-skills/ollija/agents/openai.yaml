@@ -1,0 +1,4 @@
+interface:
+  display_name: Ollija
+  short_description: Keep one branch-matched plan deterministic
+  default_prompt: "Use $ollija to run ollija init when the current project has no contract, run ollija annotate-plan before selecting or creating a plan, enrich the returned plan_path, and refresh its guide after planning or review."

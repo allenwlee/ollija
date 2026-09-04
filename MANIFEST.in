@@ -1,0 +1,9 @@
+include README.md
+include CHANGELOG.md
+include LICENSE
+prune .github
+prune docs
+prune examples
+prune tests
+global-exclude *.py[cod]
+global-exclude .DS_Store

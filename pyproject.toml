@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ollija"
+version = "0.1.0"
+description = "Deterministic guidance for shared implementation plans"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "0BSD"
+license-files = ["LICENSE"]
+keywords = ["agents", "cli", "git", "planning", "worktrees"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Operating System :: POSIX",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development :: Version Control :: Git",
+]
+dependencies = [
+  "PyYAML>=6,<7",
+]
+
+[project.urls]
+Homepage = "https://github.com/allenwlee/ollija"
+Repository = "https://github.com/allenwlee/ollija"
+Issues = "https://github.com/allenwlee/ollija/issues"
+Changelog = "https://github.com/allenwlee/ollija/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+dev = [
+  "build>=1,<2",
+  "pytest>=8,<10",
+  "ruff>=0.12,<1",
+]
+
+[project.scripts]
+ollija = "ollija.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+ollija = [
+  "assets/templates/*.md",
+  "assets/agent-skills/ollija/*.md",
+  "assets/agent-skills/ollija/agents/*.yaml",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP"]

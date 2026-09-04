@@ -1,0 +1,36 @@
+name: Bug report
+description: Report reproducible incorrect behavior
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve Ollija.
+  - type: input
+    id: version
+    attributes:
+      label: Ollija version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include the command, minimal project configuration, and exact result.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Python, Git, operating system, and shell versions.
+    validations:
+      required: true

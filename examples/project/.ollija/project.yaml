@@ -1,0 +1,28 @@
+schema_version: 1
+authority:
+  canonical_host: example-host
+  repository_root: __ABSOLUTE_REPOSITORY_ROOT__
+  repository_slug: example/project
+  release_worktree_label: Ollija delivery worktree area
+  release_worktree_path: .worktrees
+plans:
+  directory: docs/plans
+git:
+  remote: origin
+  staging_branch: staging
+  production_branch: main
+environments:
+  staging:
+    blueprint: deploy/staging.yaml
+    url: https://staging.example.invalid
+    service: example-staging
+  production:
+    blueprint: deploy/production.yaml
+    url: https://www.example.invalid
+    service: example-production
+delivery:
+  template: .ollija/templates/delivery-guide.md
+  test_commands:
+    - python -m pytest
+  code_failure_route: parent implementation workflow
+  infra_failure_route: project infrastructure workflow

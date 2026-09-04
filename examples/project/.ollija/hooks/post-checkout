@@ -1,0 +1,27 @@
+#!/bin/sh
+
+# Git runs post-checkout for ordinary checkouts too. Only a named linked
+# worktree gets a plan stub; the primary checkout and detached HEAD do nothing.
+common_git_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || exit 0
+git_dir="$(git rev-parse --path-format=absolute --git-dir 2>/dev/null)" || exit 0
+active_worktree="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+git symbolic-ref --quiet --short HEAD >/dev/null 2>&1 || exit 0
+repository_root="$(dirname "$common_git_dir")"
+
+if [ "$git_dir" = "$common_git_dir" ]; then
+  exit 0
+fi
+
+if ! command -v ollija >/dev/null 2>&1; then
+  printf '%s\n' "Ollija annotation skipped: the ollija command is not installed." >&2
+  exit 0
+fi
+
+if ! OLLIJA_WORKTREE_CWD="$active_worktree" \
+  OLLIJA_PROJECT_ROOT="$repository_root" \
+  OLLIJA_HOOK_NONBLOCKING_LOCK=1 \
+  ollija annotate-plan </dev/null; then
+  printf '%s\n' "Ollija annotation failed. Recover with: cd -- \"$active_worktree\" && ollija annotate-plan" >&2
+fi
+
+exit 0
