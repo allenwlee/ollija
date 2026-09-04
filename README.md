@@ -7,14 +7,107 @@ same project-local contract and Git facts. Ollija (올리자) in Korean dev-spea
 Ollija is an early public alpha. It maintains planning guidance; it does not commit, push, deploy,
 remove worktrees, or run a persistent service.
 
-## Why Ollija?
+## Executive Summary
 
-- Developers and coding agents share one tracked project contract.
-- Each named branch resolves to one Markdown plan.
-- Generated guidance stays inside a replaceable marker-bounded block.
-- Human-authored plan content and delivery exceptions remain untouched.
-- A read-only check detects missing, malformed, ambiguous, cross-branch, or stale guidance before
-  another workflow mutates the repository.
+### Why it exists
+
+Software teams increasingly combine human developers with coding agents, but the instructions that
+govern a change are often scattered across chat, planning documents, branches, worktrees, and
+deployment notes. That fragmentation creates practical ambiguity: two participants may choose
+different plans, an agent may follow stale guidance, or a workflow may infer release authority that
+the owner never granted.
+
+Ollija creates one durable coordination point inside the repository. It binds each named Git branch
+to one Markdown implementation plan, renders project-specific guidance into a clearly bounded part
+of that plan, and verifies that the plan, branch, worktree, and tracked contract still agree before
+another workflow changes the repository. Developers and coding agents invoke the same
+Command-Line Interface (CLI: a program operated through typed shell commands), so neither side has
+a separate or privileged source of instructions.
+
+### Where it fits
+
+Ollija is the plan-guidance layer between product intent and the systems that implement and deliver
+software. It supplements planning tools, coding agents, Git, Continuous Integration (CI: automated
+checks run against proposed changes), and deployment systems. It does not replace or operate any of
+them.
+
+The following American Standard Code for Information Interchange (ASCII) taxonomy shows that
+placement:
+
+```text
+Software-delivery ecosystem
+|
++-- Intent and planning
+|   +-- Product requirements and owner decisions
+|   +-- Architecture notes and implementation plans
+|   `-- Explicit delivery scope and exceptions
+|
++-- Ollija: deterministic plan-guidance layer
+|   +-- Tracked project contract
+|   +-- One named branch -> one Markdown plan
+|   +-- Replaceable generated guidance
+|   +-- Shared developer and coding-agent entry point
+|   `-- Read-only freshness and consistency check
+|
++-- Implementation workflow
+|   +-- Developers and coding agents
+|   +-- Source code and Git worktrees
+|   `-- Project-owned tests and review
+|
+`-- Owner-controlled delivery
+    +-- CI and staging
+    +-- Merge and deployment
+    `-- Monitoring, rollback, and worktree cleanup
+```
+
+The consuming repository owns the contract and plan. Ollija reads local Git facts, selects or
+creates the branch-matched plan, and updates only its generated marker-bounded section. The parent
+workflow remains responsible for implementation, tests, commits, pushes, deployment, and any
+guarded cleanup.
+
+### Brief history and evolution
+
+Ollija began as a project-specific delivery-plan annotator within a larger application repository.
+An earlier stateful release engine was retired, leaving a smaller stateless core focused on plan
+selection, deterministic guidance, and pre-mutation checks. That core was then extracted into a
+standalone Python package with neutral project assets, clean repository history, and no dependency
+on the original application's services or data.
+
+The first public release added project initialization and a portable agent skill. New adopters can
+now create a strict plan-only contract with `ollija init`; existing advanced delivery contracts
+remain supported without making deployment policy a default.
+
+### What it replaces and what it supplements
+
+Ollija replaces:
+
+- ad hoc branch-to-plan lookup performed independently by each person or agent;
+- duplicated or competing implementation plans for the same branch;
+- hand-maintained instruction blocks that silently drift from project configuration;
+- informal checks for whether guidance still matches the active branch and worktree; and
+- the assumption that an agent-specific prompt should carry hidden release authority.
+
+Ollija supplements:
+
+- product and engineering plans by keeping generated execution guidance beside human intent;
+- coding-agent skills by giving different agent systems one deterministic command and contract;
+- Git branches and linked worktrees by making their relationship to a plan explicit;
+- CI and review by providing a read-only check before mutations begin; and
+- deployment workflows by recording owner-selected targets and guarded instructions without
+  executing them.
+
+### Strategic value
+
+For an engineering organization, Ollija is a small interoperability layer for human-and-agent
+delivery. It reduces coordination errors without introducing a hosted control plane, proprietary
+agent runtime, database, or background service. Because its contract is tracked with the code and
+its output is deterministic, teams can review changes to delivery guidance through ordinary source
+control and reproduce the same result across machines and agent products.
+
+The immediate value is fewer stale-plan, wrong-branch, and accidental-authority mistakes. The
+longer-term value is a common planning boundary across a portfolio of repositories: each product
+can retain its own stack and delivery process while exposing the same small, auditable interface to
+developers and coding agents.
 
 ## Requirements
 
