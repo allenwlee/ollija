@@ -98,6 +98,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Required with a staging or production delivery target.",
     )
+    annotate.add_argument("--delivery-route", choices=("staged", "direct"))
+    annotate.add_argument("--delivery-route-selected-by-user", action="store_true")
+    annotate.add_argument("--staging-transport", choices=("branch", "commit"))
     return parser
 
 
@@ -213,6 +216,17 @@ def _stub_name(branch: str, timestamp: str, attempt: int = 0) -> str:
 
 
 def _metadata_with_inputs(metadata: PlanMetadata, args: argparse.Namespace) -> PlanMetadata:
+    if not metadata.enabled:
+        if (
+            args.workflow is not None
+            or args.delivery_target is not None
+            or args.delivery_selected_by_user
+            or args.delivery_route is not None
+            or args.delivery_route_selected_by_user
+            or args.staging_transport is not None
+        ):
+            raise PlanDiscoveryError("plan_is_disabled_edit_owner_selection_in_frontmatter")
+        return metadata
     workflow = (
         metadata.workflow if args.workflow is None else _line(args.workflow, option="workflow")
     )
@@ -232,8 +246,27 @@ def _metadata_with_inputs(metadata: PlanMetadata, args: argparse.Namespace) -> P
         raise PlanDiscoveryError("delivery_target_requires_explicit_user_selection")
     if target == "on-request" and selected:
         raise PlanDiscoveryError("on_request_delivery_target_cannot_be_user_selected")
+    route = args.delivery_route or metadata.delivery_route
+    transport = args.staging_transport or metadata.staging_transport
+    route_selected = metadata.delivery_route_selected_by_user
+    if args.delivery_route_selected_by_user and args.delivery_route is None:
+        raise PlanDiscoveryError("delivery_route_selection_requires_delivery_route")
+    if args.delivery_route is not None or args.staging_transport is not None:
+        if not args.delivery_route_selected_by_user:
+            raise PlanDiscoveryError("delivery_route_requires_explicit_user_selection")
+        route_selected = True
+    if route == "direct":
+        if args.staging_transport is not None:
+            raise PlanDiscoveryError("direct_delivery_cannot_specify_staging_transport")
+        transport = "branch"
     return replace(
-        metadata, workflow=workflow, delivery_target=target, delivery_selected_by_user=selected
+        metadata,
+        workflow=workflow,
+        delivery_target=target,
+        delivery_selected_by_user=selected,
+        delivery_route=route,
+        delivery_route_selected_by_user=route_selected,
+        staging_transport=transport,
     )
 
 
@@ -261,19 +294,33 @@ def _replace_metadata(content: str, original: PlanMetadata, updated: PlanMetadat
         "workflow": _yaml_scalar(updated.workflow),
         "delivery_target": _yaml_scalar(updated.delivery_target),
         "delivery_selected_by_user": str(updated.delivery_selected_by_user).lower(),
+        "delivery_route": updated.delivery_route,
+        "delivery_route_selected_by_user": str(updated.delivery_route_selected_by_user).lower(),
     }
+    if updated.delivery_route == "staged":
+        replacements["staging_transport"] = updated.staging_transport
     seen: set[str] = set()
+    mapping_indent = "  "
     for index in range(start + 1, end):
         match = re.match(
-            r"^(\s+)(workflow|delivery_target|delivery_selected_by_user):[^\r\n]*(\r?\n?)$",
+            r"^([ \t]+)(workflow|delivery_target|delivery_selected_by_user|delivery_route|delivery_route_selected_by_user|staging_transport):[^\r\n]*(\r?\n?)$",
             lines[index],
         )
         if match:
             indent, key, newline = match.groups()
-            lines[index] = f"{indent}{key}: {replacements[key]}{newline}"
+            mapping_indent = indent
+            lines[index] = (
+                f"{indent}{key}: {replacements[key]}{newline}" if key in replacements else ""
+            )
             seen.add(key)
-    if seen != replacements.keys():
+    if not {"workflow", "delivery_target", "delivery_selected_by_user"} <= seen:
         raise PlanDiscoveryError("malformed_plan_ollija_mapping")
+    newline = "\r\n" if "\r\n" in content else "\n"
+    lines[end:end] = [
+        f"{mapping_indent}{key}: {value}{newline}"
+        for key, value in replacements.items()
+        if key not in seen
+    ]
     return "".join(lines) + content[frontmatter_end:]
 
 
@@ -387,6 +434,7 @@ def _result(
         "branch": branch,
         "delivery_target": target,
         "profile": config.profile,
+        "management": "enabled" if plan.metadata.enabled else "disabled",
     }
     if config.has_delivery_profile:
         result["canonical_required_path"] = str(canonical_worktree_path(config, branch))
@@ -408,6 +456,15 @@ def _annotate(args: argparse.Namespace, *, cwd: Path) -> dict[str, str]:
             config, args, facts.active_worktree, facts.branch, write=not args.check
         )
         metadata = _metadata_with_inputs(plan.metadata, args)
+        if not metadata.enabled:
+            return _result(
+                state="disabled",
+                plan=plan,
+                active_worktree=facts.active_worktree,
+                config=config,
+                branch=facts.branch,
+                target=metadata.delivery_target,
+            )
         if config.profile == "plan-only" and (
             metadata.delivery_target != "on-request" or metadata.delivery_selected_by_user
         ):

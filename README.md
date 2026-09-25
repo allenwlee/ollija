@@ -224,6 +224,29 @@ The CLI itself does not execute configured test or delivery commands.
 Report suspected vulnerabilities through GitHub's private vulnerability reporting rather than a
 public issue. See [SECURITY.md](SECURITY.md) for the supported-version and response policy.
 
+## Owner-selected delivery routes
+
+For advanced delivery contracts, production is the destination and the route is a separate
+plan choice. Existing plans keep staged, branch-based delivery. Explicit owner choices can
+select `delivery_route: direct` for production or `staging_transport: commit` for staging
+without moving its shared branch. Record `delivery_route_selected_by_user: true`; direct
+production also requires the existing production authorization fields. Direct delivery must
+omit `staging_transport`. The parent checks shared-service occupancy and deployed identity.
+
+`ollija annotate-plan PLAN --delivery-target production --delivery-selected-by-user
+--delivery-route direct --delivery-route-selected-by-user` records a direct route. These are
+one command's arguments. Reannotation preserves the choice.
+
+To opt out, keep `ollija: {enabled: false, branch: your-branch}` in frontmatter and remove the
+old guide. Annotation, `--check`, and discovery leave disabled plans untouched. A branch
+identity remains necessary so checkout hooks cannot create a replacement plan. Re-enabling
+requires restoring managed metadata. Owner exceptions never become automatic test passes.
+
+After upgrading the command, run `ollija init` in an existing consumer to refresh its managed
+agent skill. Initialization preserves existing project contracts and refuses conflicting local
+skill edits; reconcile those edits rather than overwriting them. The packaged skill and example
+copy are tested for parity.
+
 ## Development
 
 ```sh

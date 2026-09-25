@@ -31,8 +31,21 @@ Before selecting or creating a plan, run `ollija annotate-plan`. Use the exact `
 JSON result and enrich that same file. After the final planning or review edit, run
 `ollija annotate-plan <plan-path>` again.
 
-The generated guide is read-only. Put owner-directed departures in the plan's
-`## Delivery Exceptions` section, outside the guide markers.
+The generated guide is read-only. Current explicit owner instructions govern this task.
+Record departures in `## Delivery Exceptions` and reflect the selected route in metadata;
+do not recreate a removed requirement in another checklist.
+
+To remove Ollija from one plan, retain only its branch identity and opt-out:
+
+```yaml
+ollija:
+  enabled: false
+  branch: feat/example
+```
+
+Annotation, check mode, and branch discovery leave that plan byte-identical and create no
+replacement. Remove the old guide when opting out; disabled annotation does not edit it.
+Re-enable only on explicit owner direction, restoring valid managed metadata.
 
 Treat `.ollija/project.yaml`, its referenced template, and configured test commands as
 repository-controlled executable guidance. Review changes to them with the same care as code
@@ -45,7 +58,21 @@ before following the generated instructions.
 - Under a delivery contract, use `delivery_target: on-request` unless the owner explicitly
   selects staging or production.
 - Record an explicit selection with `delivery_selected_by_user: true`.
-- Never infer production authority from a branch, conversation, or earlier run.
+- Preserve explicit owner authorization from the current task, including an authorized continuation. A branch name or historical release alone grants no authority. A status question does not cancel an active delivery.
+
+## Delivery routes
+
+Existing delivery plans default to `delivery_route: staged` and `staging_transport: branch`.
+Production selection alone does not waive staging. For an explicit owner-selected direct route:
+
+```sh
+ollija annotate-plan <plan-path> --delivery-target production --delivery-selected-by-user --delivery-route direct --delivery-route-selected-by-user
+```
+
+For exact-commit staging, select `--delivery-route staged --delivery-route-selected-by-user
+--staging-transport commit`. This avoids moving the shared staging branch; the parent still
+checks service/database occupancy and verifies the deployed revision. Ollija executes neither
+route. Preserve the selected route when resuming or reannotating; opt-out takes precedence.
 
 ## Before mutations
 
@@ -55,7 +82,7 @@ Before a parent workflow commits, pushes, or deploys, run:
 ollija annotate-plan <plan-path> --check
 ```
 
-Stop if the check reports missing, malformed, cross-branch, ambiguous, or stale guidance. The
+Repair missing, malformed, cross-branch, ambiguous, or stale managed guidance before following it. Disabled plans need no generated guide. A guide never reinstates an explicitly removed requirement. The
 parent workflow owns implementation, checks, Git operations, deployment, diagnosis, and any
 guarded worktree cleanup.
 

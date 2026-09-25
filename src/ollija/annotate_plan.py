@@ -30,6 +30,10 @@ class PlanMetadata:
     workflow: str
     delivery_target: str
     delivery_selected_by_user: bool
+    enabled: bool = True
+    delivery_route: str = "staged"
+    delivery_route_selected_by_user: bool = False
+    staging_transport: str = "branch"
 
 
 def _line(value: Any, *, field: str) -> str:
@@ -73,18 +77,45 @@ def parse_plan_metadata(content: str) -> PlanMetadata:
     raw = loaded.get("ollija")
     if not isinstance(raw, Mapping):
         raise AnnotationError("plan frontmatter must contain an ollija mapping")
+    enabled = raw.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise AnnotationError("ollija.enabled must be a boolean")
+    # A branch identity is sufficient to keep discovery from recreating an
+    # opted-out plan. Managed delivery fields are irrelevant while disabled.
+    if not enabled:
+        return PlanMetadata(
+            "", _branch(raw.get("branch")), "plan", "on-request", False, enabled=False
+        )
     target = _line(raw.get("delivery_target"), field="delivery_target")
     if target not in {"on-request", "staging", "production"}:
         raise AnnotationError("ollija.delivery_target must be on-request, staging, or production")
     selected = raw.get("delivery_selected_by_user")
     if not isinstance(selected, bool):
         raise AnnotationError("ollija.delivery_selected_by_user must be a boolean")
+    route = raw.get("delivery_route", "staged")
+    transport = raw.get("staging_transport", "branch")
+    route_selected = raw.get("delivery_route_selected_by_user", False)
+    if route not in ("staged", "direct"):
+        raise AnnotationError("ollija.delivery_route must be staged or direct")
+    if transport not in ("branch", "commit"):
+        raise AnnotationError("ollija.staging_transport must be branch or commit")
+    if not isinstance(route_selected, bool):
+        raise AnnotationError("ollija.delivery_route_selected_by_user must be a boolean")
+    if route == "direct" and (target != "production" or not selected or not route_selected):
+        raise AnnotationError("direct delivery requires owner-selected production and route")
+    if route == "direct" and "staging_transport" in raw:
+        raise AnnotationError("direct delivery cannot specify staging_transport")
+    if transport == "commit" and (not selected or not route_selected or target == "on-request"):
+        raise AnnotationError("commit staging requires owner-selected delivery and route")
     return PlanMetadata(
         change_id=_line(raw.get("change_id"), field="change_id"),
         branch=_branch(raw.get("branch")),
         workflow=_line(raw.get("workflow"), field="workflow"),
         delivery_target=target,
         delivery_selected_by_user=selected,
+        delivery_route=route,
+        delivery_route_selected_by_user=route_selected,
+        staging_transport=transport,
     )
 
 
@@ -126,17 +157,19 @@ def _production_cleanup_action(
     config: ProjectConfig,
     metadata: PlanMetadata,
     active_worktree: Path,
+    *,
+    step: int = 11,
 ) -> str:
     if not is_canonical_worktree(config, active_worktree, metadata.branch):
         return (
-            "11. Retain this noncanonical worktree. Ollija withholds the cleanup "
+            f"{step}. Retain this noncanonical worktree. Ollija withholds the cleanup "
             "command until relocation and reannotation make the exact canonical "
             "target explicit."
         )
     root = quote(str(config.authority.repository_root))
     worktree = quote(str(active_worktree))
     return (
-        "11. After step 10 succeeds, perform worktree cleanup as the final "
+        f"{step}. After step {step - 1} succeeds, perform worktree cleanup as the final "
         "filesystem action:\n"
         f"    - From `{config.authority.repository_root}`, require "
         f"`{active_worktree}` to remain registered, clean, unlocked, and at the "
@@ -183,20 +216,30 @@ def _delivery_actions(
         f"`{config.environments['staging'].service}` reports that same SHA.\n"
         "7. Run staging checks. Stop here if they fail."
     )
+    if metadata.staging_transport == "commit":
+        staging = (
+            "4. Inspect staging service/database occupancy. Do not interrupt another release.\n"
+            "5. Use the project's deployment interface to deploy the exact candidate commit "
+            "to staging without moving its branch. Account for automatic deployment races.\n"
+            "6. Verify the staging service reports that candidate SHA.\n"
+            "7. Run the applicable, unwaived staging checks. Diagnose a failure before retrying."
+        )
     if metadata.delivery_target == "staging":
         return base + "\n" + staging
+    direct = metadata.delivery_route == "direct"
+    step = 4 if direct else 8
+    prerequisite = "On the owner-selected direct route" if direct else "Only after staging passes"
     return (
         base
-        + "\n"
-        + staging
-        + "\n8. Only after staging passes, fetch the remote production lane: `git fetch "
+        + ("" if direct else "\n" + staging)
+        + f"\n{step}. {prerequisite}, fetch the remote production lane: `git fetch "
         f"{remote} {production_ref}`.\n"
-        "9. Require the same unchanged candidate SHA to be a fast-forward of that fetched remote ref, then push the "
+        f"{step + 1}. Require the same unchanged candidate SHA to be a fast-forward of that fetched remote ref, then push the "
         f"exact candidate SHA to `refs/heads/{config.git.production_branch}` with the server-enforced fast-forward "
         f"command `git push {remote} <candidate-sha>:{production_ref}`.\n"
-        "10. Verify the remote production ref resolves to the candidate SHA and the deployment for "
+        f"{step + 2}. Verify the remote production ref resolves to the candidate SHA and the deployment for "
         f"`{config.environments['production'].service}` reports that same SHA before reporting completion.\n"
-        + _production_cleanup_action(config, metadata, active_worktree)
+        + _production_cleanup_action(config, metadata, active_worktree, step=step + 3)
     )
 
 
@@ -235,6 +278,8 @@ def render_delivery_guide(
         "workflow": metadata.workflow,
         "delivery_target": metadata.delivery_target,
         "delivery_selected_by_user": str(metadata.delivery_selected_by_user).lower(),
+        "delivery_route": metadata.delivery_route,
+        "staging_transport": metadata.staging_transport,
         "code_failure_route": config.delivery.code_failure_route,
     }
     if config.has_delivery_profile:
@@ -276,6 +321,8 @@ def render_annotated_plan(
     resolved_plan = Path(plan_path).expanduser().resolve()
     worktree = Path(active_worktree).expanduser().resolve()
     metadata = parse_plan_metadata(original)
+    if not metadata.enabled:
+        return original, metadata
     span = _marker_span(original)
     guide = render_delivery_guide(
         config, plan_path=resolved_plan, active_worktree=worktree, metadata=metadata
