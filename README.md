@@ -1,8 +1,9 @@
 # Ollija
 
-Ollija is a small, deterministic command-line tool for keeping delivery guidance inside a
-branch-matched Markdown plan. Developers and coding agents invoke the same command against the
-same project-local contract and Git facts. Ollija (올리자) in Korean dev-speak means, "Let's deploy!"
+Ollija is a small command-line tool (a program run by typing commands) that helps developers and
+coding agents follow the same written plan while changing a software project. It connects each Git
+branch (a separate line of work) to one Markdown plan and checks that the plan still belongs to the
+work being done. Ollija (올리자) in Korean dev-speak means, "Let's deploy!"
 
 Ollija is an early public alpha. It maintains planning guidance; it does not commit, push, deploy,
 remove worktrees, or run a persistent service.
